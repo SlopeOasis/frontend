@@ -44,7 +44,7 @@ export function ManageListings() {
             {userListings.map((product) => (
               <div key={product.id} className="bg-card border border-border rounded-lg p-4 flex gap-4">
                 {/* Product Image */}
-                <div className="w-24 h-24 relative bg-secondary rounded overflow-hidden flex-shrink-0">
+                <div className="w-24 h-24 relative bg-secondary rounded overflow-hidden shrink-0">
                   <Image src={product.image || "/placeholder.svg"} alt={product.title} fill className="object-cover" />
                 </div>
 

@@ -10,9 +10,10 @@ import type { Product } from "@/lib/types"
 
 interface ProductCardProps {
   product: Product
+  index?: number
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [rotation, setRotation] = useState({ x: 0, y: 0 })
   const [isHovering, setIsHovering] = useState(false)
 
@@ -48,13 +49,19 @@ export function ProductCard({ product }: ProductCardProps) {
         }}
       >
         <div
-          className="border border-border rounded-lg overflow-hidden bg-card transition-all duration-300 ease-out"
+          className="border border-border rounded-lg overflow-hidden bg-card"
           style={{
-            transform: isHovering
-              ? `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg) scale(1.05) translateZ(20px)`
-              : "rotateX(0deg) rotateY(0deg) scale(1) translateZ(0px)",
-            boxShadow: isHovering ? "0 20px 40px rgba(0, 0, 0, 0.15)" : "0 1px 3px rgba(0, 0, 0, 0.1)",
             transformStyle: "preserve-3d",
+            // Hover pop + tilt
+            transition: "transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms ease",
+            willChange: "transform, box-shadow",
+            boxShadow: isHovering ? "0 6px 18px rgba(0, 0, 0, 0.18)" : "0 6px 18px rgba(0,0,0,0.06)",
+            transform: (() => {
+              const translateY = isHovering ? 6 : 0
+              const translateX = isHovering ? 6 : 0
+              const translateZ = isHovering ? "translateZ(18px)" : ""
+              return `translateY(${translateY}px) translateX(${translateX}px) ${translateZ}`
+            })(),
           }}
         >
           {/* Product Image */}
