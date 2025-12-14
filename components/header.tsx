@@ -5,10 +5,12 @@ import { Search } from "lucide-react"
 import Image from "next/image"
 import React, { useEffect, useRef } from "react";
 import { SignInButton, SignedIn, SignedOut, useUser, useSignIn, SignInWithMetamaskButton, useAuth } from "@clerk/nextjs";
+import { DebugBackend } from "./debug-backend";
 
 export function Header() {
   return (
     <header className="border-b border-border bg-background sticky top-0 z-50">
+      <DebugBackend />
       <div className="container mx-auto px-4 py-4">
         <AutoRegister />
         <div className="flex items-center justify-between gap-4">
@@ -75,32 +77,16 @@ function AutoRegister() {//pri vsaki registraciji se pokliče, in doda novega us
 
     (async () => {
       try {
-        // extract wallet with some common shapes (sdk may vary)
-        // @ts-ignore
-        const wallet = user?.primaryWalletAddress || // Clerk SDK field
-          // @ts-ignore
-          user?.externalAccounts?.[0]?.address ||
-          // @ts-ignore
-          user?.web3Wallets?.[0]?.web3Wallet ||
-          // @ts-ignore
-          user?.web3_wallets?.[0]?.web3_wallet;
-        if (!wallet) {
-          console.warn("No wallet address found on Clerk user. Ensure wallets are enabled in Clerk and user connected a wallet.");
+        const token = await getToken({ template: "backendVerification" });
+        if (!token) {
+          console.warn("No session token; skipping auto-register");
           return;
         }
-        else {
-          console.log("Found wallet address for auto-registration:", wallet);
-        }
-
-        const token = await getToken();
-        const body = { clerkId: user.id, walletAddress: wallet };
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"}/users`, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(body),
         });
 
         if (res.ok) {
