@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { Header } from "@/components/header"
 import { ProductDetail } from "@/components/product-detail"
 import type { Product } from "@/lib/types"
-import { clerkClient } from "@clerk/nextjs/server"
+import { clerkClient, auth } from "@clerk/nextjs/server"
 
 type PostWithRating = {
   post: {
@@ -26,18 +26,24 @@ type PostWithRating = {
 }
 
 interface ProductPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { id } = params
+  const { id } = await params
   const postApiBase = process.env.NEXT_PUBLIC_POST_API_URL || "http://localhost:8081"
   const userApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 
   let mapped: Product | null = null
 
   try {
-    const res = await fetch(`${postApiBase}/posts/${id}`, { cache: "no-store" })
+    const { getToken } = await auth()
+    const token = await getToken({ template: "backendVerification" })
+    
+    const res = await fetch(`${postApiBase}/posts/${id}`, { 
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    })
     if (res.status === 404) return notFound()
     if (!res.ok) throw new Error(`Failed to load post (${res.status})`)
 
@@ -71,7 +77,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
     let fileName: string | undefined
     if (post.azBlobName) {
       try {
-        const metaRes = await fetch(`${postApiBase}/posts/${post.id}/blob-metadata`)
+        const metaRes = await fetch(`${postApiBase}/posts/${post.id}/blob-metadata`, {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+        })
         if (metaRes.ok) {
           const meta = await metaRes.json() as { name: string; contentType: string; sizeBytes: number; createdAt?: string; lastModified?: string; sizeFormatted?: string }
           fileName = meta.name
