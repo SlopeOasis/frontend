@@ -1,6 +1,7 @@
 import { Header } from "@/components/header"
 import { ProductGrid } from "@/components/product-grid"
 import type { Product } from "@/lib/types"
+import { auth } from "@clerk/nextjs/server"
 
 const SLOPE_LOGO = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-4Gi5slRBIrpvjeimKEmwEAbgjBSOX1.png"
 
@@ -20,7 +21,13 @@ export default async function HomePage() {
 
   try{
     const postApiBase = process.env.NEXT_PUBLIC_POST_API_URL || "http://localhost:8081"
-    const res = await fetch(`${postApiBase}/posts/themes`, { cache: "no-store" }  )
+    const { getToken } = await auth()
+    const token = await getToken({ template: "backendVerification" })
+    
+    const res = await fetch(`${postApiBase}/posts/themes`, { 
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    })
 
     if (!res.ok) {
       throw new Error(`Failed to fetch themed posts (${res.status})`)
