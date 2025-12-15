@@ -1,11 +1,14 @@
 "use client"
 
 import { Header } from "@/components/header"
+import { ProductGrid } from "@/components/product-grid"
 import { User as UserIcon, Plus, Check } from "lucide-react"
-import React, { useRef, useState, useEffect } from "react"
+import React, { useRef, useState, useEffect, useCallback } from "react"
 import { useUser, useAuth, SignInButton } from "@clerk/nextjs"
+import type { Product } from "@/lib/types"
 
 const INTERESTS = ["ART", "MUSIC", "VIDEO", "CODE", "TEMPLATE", "PHOTO", "MODEL_3D", "FONT", "OTHER"]
+const SLOPE_LOGO = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-4Gi5slRBIrpvjeimKEmwEAbgjBSOX1.png"
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser()
@@ -17,9 +20,23 @@ export default function ProfilePage() {
   const [editingInterests, setEditingInterests] = useState(false)
   const [currentInterests, setCurrentInterests] = useState<(string | null)[]>([null, null, null])
   const [tempInterests, setTempInterests] = useState<(string | null)[]>([null, null, null])
+  const [myListings, setMyListings] = useState<Product[]>([])
+  const [loadingListings, setLoadingListings] = useState(false)
+  const [listingsError, setListingsError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
+  const postApiBase = process.env.NEXT_PUBLIC_POST_API_URL || "http://localhost:8081"
+
+  type PostResponse = {
+    id: number | string
+    title: string
+    description: string
+    priceUSD?: number
+    tags?: string[]
+    previewImages?: string[]
+    azBlobName?: string
+  }
 
   const startEditNickname = () => {
     setNicknameInput(currentNickname ?? "")
@@ -79,6 +96,68 @@ export default function ProfilePage() {
     })()
     return () => { mounted = false }
   }, [user?.id, getToken, apiBase])
+
+    // Best-effort preview SAS fetch for the first preview image of a post
+    const fetchPreviewUrl = useCallback(async (post: PostResponse, token: string | null) => {
+      const blobName = post.previewImages?.[0]
+      if (!blobName || !token) return null
+      try {
+        const sasRes = await fetch(`${postApiBase}/posts/${post.id}/blob-sas?blobName=${encodeURIComponent(blobName)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!sasRes.ok) return null
+        const sas = await sasRes.text()
+        return sas.replace(/^"|"$/g, "")
+      } catch (err) {
+        console.warn("Failed to fetch preview SAS", err)
+        return null
+      }
+    }, [postApiBase])
+
+    // Load current user's listings from post-service
+    useEffect(() => {
+      if (!user?.id) return
+      let mounted = true
+      setLoadingListings(true)
+      setListingsError(null)
+      ;(async () => {
+        try {
+          const token = await getToken({ template: "backendVerification" })
+          const res = await fetch(`${postApiBase}/posts/seller/${user.id}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          })
+          if (res.status === 401) {
+            if (mounted) setListingsError("Unauthorized. Please sign in again.")
+            return
+          }
+          if (!res.ok) throw new Error(`Failed to load listings (${res.status})`)
+          const posts: PostResponse[] = await res.json()
+          const sellerLabel = currentNickname || user.username || user.fullName || "You"
+
+          const products = await Promise.all(posts.map(async (post) => {
+            const previewUrl = await fetchPreviewUrl(post, token)
+            return {
+              id: String(post.id),
+              title: post.title,
+              image: previewUrl || SLOPE_LOGO,
+              seller: sellerLabel,
+              rating: 0,
+              price: post.priceUSD ?? 0,
+              category: post.tags?.[0] || "OTHER",
+              description: post.description,
+              tags: post.tags || [],
+            } satisfies Product
+          }))
+
+          if (mounted) setMyListings(products)
+        } catch (e) {
+          if (mounted) setListingsError(e instanceof Error ? e.message : "Failed to load listings")
+        } finally {
+          if (mounted) setLoadingListings(false)
+        }
+      })()
+      return () => { mounted = false }
+    }, [user?.id, user?.username, user?.fullName, getToken, postApiBase, currentNickname, fetchPreviewUrl])
 
   // Safely extract wallet address from various Clerk SDK / Admin shapes
   const walletDisplay = (() => {
@@ -329,22 +408,36 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* New Listing Button */}
+        <a href="/upload" className="z-50 fixed bottom-20 right-20 px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors text-sm"> + NEW LISTING</a>
         {/* Your Lists */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">YOUR LISTS</h2>
-            <a href="/upload" className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors text-sm">
-              + NEW LISTING
-            </a>
+            <h2 className="m-auto text-lg font-semibold">YOUR LISTS</h2>
           </div>
-          <div className="text-center py-12 text-muted-foreground">
-            <p>No listings yet. Create your first listing!</p>
-          </div>
+          {loadingListings ? (
+            <div className="text-center py-12 text-muted-foreground">Loading your listings...</div>
+          ) : listingsError ? (
+            <div className="text-center py-12 text-red-600">{listingsError}</div>
+          ) : myListings.length > 0 ? (
+            <ProductGrid
+              products={myListings}
+              showOverlay
+              editHrefBuilder={(p) => `/edit/${p.id}`}
+              previewHrefBuilder={(p) => `/product/${p.id}`}
+            />
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No listings yet. Create your first listing!</p>
+            </div>
+          )}
         </section>
 
         {/* Bought Items */}
         <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4">BOUGHT ITEMS</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="m-auto text-lg font-semibold mb-4">BOUGHT ITEMS</h2>
+          </div>
           <div className="text-center py-12 text-muted-foreground">
             <p>No purchases yet.</p>
           </div>

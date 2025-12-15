@@ -39,9 +39,6 @@ export function Header() {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-3">
-            <button className="px-4 py-2 border border-border rounded hover:bg-secondary transition-colors text-sm">
-              Filters
-            </button>
             {/* SignedOut: show Connect button that opens Clerk sign-in modal */}
             <SignedOut>
               <ConnectWithMetaMask />
@@ -56,10 +53,12 @@ export function Header() {
 
         {/* Category Tabs */}
         <div className="flex gap-4 mt-4 text-sm overflow-x-auto">
-          {["All", "Code", "Unity", "Unreal", "Images", "Videos", "Audio", "More"].map((category) => (
-            <button key={category} className="px-3 py-1 whitespace-nowrap hover:bg-secondary rounded transition-colors">
-              {category}
-            </button>
+          {[{name:"Art", tag:"ART"}, {name:"Music", tag:"MUSIC"}, {name:"Videos", tag:"VIDEO"}, {name:"Code", tag:"CODE"}, {name:"Templates", tag:"TEMPLATE"}, {name:"Photos", tag:"PHOTO"}, {name:"3D_Models", tag:"MODEL_3D"}, {name:"Fonts", tag:"FONT"}, {name:"Other", tag:"OTHER"}].map((category) => (
+            <Link key={category.tag} href={`/showcase/${category.tag.toLowerCase()}`}>
+              <button key={category.tag} className="px-3 py-1 whitespace-nowrap hover:bg-secondary rounded transition-colors">
+                {category.name}
+              </button>
+            </Link>
           ))}
         </div>
       </div>

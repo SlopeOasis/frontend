@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Star, UserIcon, ChevronLeft, MessageCircle } from "lucide-react"
+import { Star, ChevronLeft, UserIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { Product } from "@/lib/types"
@@ -14,7 +14,7 @@ interface ProductDetailProps {
 
 export function ProductDetail({ product }: ProductDetailProps) {
   const [selectedImage, setSelectedImage] = useState(0)
-  const images = [product.image, product.image, product.image] // Mock multiple images
+  const images = (product.images && product.images.length > 0 ? product.images : [product.image]).filter(Boolean)
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -74,22 +74,18 @@ export function ProductDetail({ product }: ProductDetailProps) {
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-center gap-1">
                 <Star className="w-5 h-5 fill-current text-foreground" />
-                <span className="text-lg font-semibold">{product.rating}/5</span>
+                <span className="text-lg font-semibold">{product.rating.toFixed(1)}/5</span>
               </div>
-              <span className="text-sm text-muted-foreground">(24 reviews)</span>
+              <span className="text-sm text-muted-foreground">({product.ratingCount ?? 0} ratings)</span>
             </div>
 
-            <div className="text-3xl font-bold mb-6">{product.price} USDT</div>
+            <div className="text-3xl font-bold mb-6">{product.priceUSD ?? product.price} USDT</div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
             <Button size="lg" className="flex-1">
               Buy Now
-            </Button>
-            <Button size="lg" variant="outline" className="flex-1 bg-transparent">
-              <MessageCircle className="w-4 h-4 mr-2" />
-              Contact Seller
             </Button>
           </div>
 
@@ -102,63 +98,66 @@ export function ProductDetail({ product }: ProductDetailProps) {
               <TabsTrigger value="details" className="flex-1">
                 Details
               </TabsTrigger>
-              <TabsTrigger value="reviews" className="flex-1">
-                Reviews
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="description" className="mt-6 space-y-4">
               <p className="text-muted-foreground leading-relaxed">
                 {product.description ||
-                  "This is a premium quality product perfect for your needs. Carefully crafted with attention to detail and built to last. Whether you're a beginner or an expert, this item will exceed your expectations."}
-              </p>
-              <p className="text-muted-foreground leading-relaxed">
-                Features include high-quality materials, excellent craftsmanship, and a design that combines
-                functionality with style. Perfect for everyday use or special occasions.
+                  "no description provided for this product."}
               </p>
             </TabsContent>
 
             <TabsContent value="details" className="mt-6">
               <dl className="space-y-3">
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-muted-foreground">Condition</dt>
-                  <dd className="font-medium">New</dd>
-                </div>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-muted-foreground">Category</dt>
-                  <dd className="font-medium">{product.category}</dd>
-                </div>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-muted-foreground">Location</dt>
-                  <dd className="font-medium">United States</dd>
-                </div>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-muted-foreground">Shipping</dt>
-                  <dd className="font-medium">Free shipping available</dd>
-                </div>
-              </dl>
-            </TabsContent>
-
-            <TabsContent value="reviews" className="mt-6 space-y-4">
-              {[1, 2, 3].map((review) => (
-                <div key={review} className="border border-border rounded-lg p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                        <UserIcon className="w-4 h-4" />
-                      </div>
-                      <span className="font-medium">User {review}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span className="text-sm font-medium">{product.rating}/5</span>
-                    </div>
+                {product.fileVersion !== undefined && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">Version</dt>
+                    <dd className="font-medium text-right">{product.fileVersion}</dd>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Great product! Exactly as described and arrived quickly. Would definitely recommend to others.
-                  </p>
-                </div>
-              ))}
+                )}
+                {product.tags && product.tags.length > 0 && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">Categories</dt>
+                    <dd className="font-medium text-right">{product.tags.join(", ")}</dd>
+                  </div>
+                )}
+                {product.fileSize && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">Size</dt>
+                    <dd className="font-medium text-right">{product.fileSize}</dd>
+                  </div>
+                )}
+                {product.fileName && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">File</dt>
+                    <dd className="font-medium text-right break-words">{product.fileName}</dd>
+                  </div>
+                )}
+                {product.contentType && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">Type</dt>
+                    <dd className="font-medium text-right">{product.contentType}</dd>
+                  </div>
+                )}
+                {product.copies !== undefined && product.copies !== -1 && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">Left in stock</dt>
+                    <dd className="font-medium text-right">{product.copies}</dd>
+                  </div>
+                )}
+                {product.uploadTime && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">Upload time</dt>
+                    <dd className="font-medium text-right">{product.uploadTime}</dd>
+                  </div>
+                )}
+                {product.lastTimeModified && (
+                  <div className="flex justify-between py-2 border-b border-border">
+                    <dt className="text-muted-foreground">Last modified</dt>
+                    <dd className="font-medium text-right">{product.lastTimeModified}</dd>
+                  </div>
+                )}
+              </dl>
             </TabsContent>
           </Tabs>
         </div>
