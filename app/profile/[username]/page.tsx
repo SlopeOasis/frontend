@@ -99,14 +99,10 @@ async function loadSellerProducts(sellerId: string, sellerLabel: string, postApi
       priceUSD?: number
       tags?: string[]
       previewImages?: string[]
-      status?: string
     }> = await res.json()
 
-    // Filter to only ACTIVE listings
-    const activePosts = posts.filter(post => post.status === "ACTIVE")
-
     return await Promise.all(
-      activePosts.map(async (post) => {
+      posts.map(async (post) => {
         let imageUrl = SLOPE_LOGO
         const blob = post.previewImages?.[0]
         if (blob) {
