@@ -35,7 +35,12 @@ export default async function HomePage() {
 
     const posts: PostResponse[] = await res.json()
 
-    themedProducts = await Promise.all(posts.map(async (post) => {
+    // Deduplicate posts by ID (posts may appear multiple times if they match multiple themes)
+    const uniquePosts = Array.from(
+      new Map(posts.map(post => [post.id, post])).values()
+    )
+
+    themedProducts = await Promise.all(uniquePosts.map(async (post) => {
       let imageUrl = SLOPE_LOGO
       if (post.previewImages?.[0]) {
         try {

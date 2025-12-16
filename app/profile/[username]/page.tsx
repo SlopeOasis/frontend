@@ -99,10 +99,14 @@ async function loadSellerProducts(sellerId: string, sellerLabel: string, postApi
       priceUSD?: number
       tags?: string[]
       previewImages?: string[]
+      status?: string
     }> = await res.json()
 
+    // Filter to only show ACTIVE listings publicly
+    const activePosts = posts.filter(post => post.status === "ACTIVE")
+
     return await Promise.all(
-      posts.map(async (post) => {
+      activePosts.map(async (post) => {
         let imageUrl = SLOPE_LOGO
         const blob = post.previewImages?.[0]
         if (blob) {
@@ -130,7 +134,8 @@ async function loadSellerProducts(sellerId: string, sellerLabel: string, postApi
         }
       })
     )
-  } catch {
+  } catch (err) {
+    console.error("Error loading seller products:", err)
     return []
   }
 }
