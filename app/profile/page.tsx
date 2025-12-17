@@ -10,6 +10,13 @@ import type { Product } from "@/lib/types"
 const INTERESTS = ["ART", "MUSIC", "VIDEO", "CODE", "TEMPLATE", "PHOTO", "MODEL_3D", "FONT", "OTHER"]
 const SLOPE_LOGO = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-4Gi5slRBIrpvjeimKEmwEAbgjBSOX1.png"
 
+// Minimal typing for MetaMask provider
+declare global {
+  interface Window {
+    ethereum?: any
+  }
+}
+
 export default function ProfilePage() {
   const { user, isLoaded } = useUser()
   const { getToken, signOut } = useAuth()
@@ -23,6 +30,7 @@ export default function ProfilePage() {
   const [myListings, setMyListings] = useState<Product[]>([])
   const [loadingListings, setLoadingListings] = useState(false)
   const [listingsError, setListingsError] = useState<string | null>(null)
+  const [polygonVerified, setPolygonVerified] = useState<boolean | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
@@ -68,6 +76,26 @@ export default function ProfilePage() {
       } catch (e) {
         console.error("Error fetching nickname", e)
       }
+    })()
+    return () => { mounted = false }
+  }, [user?.id, getToken, apiBase])
+
+  // Fetch Polygon wallet verification status
+  useEffect(() => {
+    if (!user?.id) return
+    let mounted = true
+    ;(async () => {
+      try {
+        const token = await getToken({ template: "backendVerification" })
+        if (!token) return
+        const res = await fetch(`${apiBase}/users/pol-wallet-status`, {
+          method: "GET",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        })
+        if (!res.ok) return
+        const status = await res.json()
+        if (mounted) setPolygonVerified(Boolean(status))
+      } catch {}
     })()
     return () => { mounted = false }
   }, [user?.id, getToken, apiBase])
@@ -232,6 +260,108 @@ export default function ProfilePage() {
     }
   }
 
+  {/* Connect with Polygon stuff */}
+
+  const VERIFICATION_MESSAGE = "Verify Polygon wallet ownership for SlopeOasis";
+
+
+  const connectPolygonWallet = async () => {
+    try {
+      ensureMetaMask(); //pogleda da je mm namescen
+      await switchToPolygon(); //force switcha na polygon network
+
+      const address = await getWalletAddress(); //dobimo address iz metamaska
+      const signature = await signMessage(address); //podpise sporočilo z walletom
+
+      await submitVerification(address, signature); //pošlje na backend za verifikacijo
+
+      alert("Polygon wallet verified!");
+      window.location.reload(); // reload page
+
+    } catch (err: any) {
+      if (err.code === 4001) {
+        alert("Signature rejected");
+      } else {
+        console.error(err);
+        alert("Wallet verification failed");
+      }
+    }
+  }
+
+  function ensureMetaMask() {
+    if (!window.ethereum) {
+      alert("MetaMask is required");
+      throw new Error("MetaMask not installed");
+    }
+  }
+
+  async function switchToPolygon() {
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x89" }], // Polygon
+      });
+    } catch (err: any) {
+      // Chain not added
+      if (err.code === 4902) {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: "0x89",
+            chainName: "Polygon Mainnet",
+            nativeCurrency: {
+              name: "POL",
+              symbol: "POL",
+              decimals: 18,
+            },
+            rpcUrls: ["https://polygon-rpc.com"],
+            blockExplorerUrls: ["https://polygonscan.com"],
+          }],
+        });
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  async function getWalletAddress(): Promise<string> {
+    const accounts = await window.ethereum.request({
+      method: "eth_requestAccounts",
+    });
+
+    if (!accounts || accounts.length === 0) {
+      throw new Error("No wallet selected");
+    }
+
+    return accounts[0];
+  }
+
+  async function signMessage(address: string): Promise<string> {
+    return await window.ethereum.request({
+      method: "personal_sign",
+      params: [VERIFICATION_MESSAGE, address],
+    });
+  }
+
+  async function submitVerification(walletAddress: string, signature: string) {
+    const token = await getToken({ template: "backendVerification" })
+        if (!token) return
+    const res = await fetch(`${apiBase}/users/pol-verify-wallet`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+      body: JSON.stringify({
+        walletAddress,
+        message: VERIFICATION_MESSAGE,
+        signature,
+      }),
+    });
+    if (!res.ok) throw new Error(`Failed to verify wallet: ${res.status}`)
+    setPolygonVerified(true)
+  }
+
   const triggerFile = () => fileInputRef.current?.click()
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -332,7 +462,7 @@ export default function ProfilePage() {
                 Nickname: <span className="text-foreground">{currentNickname ?? "-"}</span>
               </p>
               <p className="text-sm text-muted-foreground">
-                Wallet name: <span className="text-foreground">{walletDisplay}</span>
+                Signed in with: <span className="text-foreground">{walletDisplay}</span>
               </p>
               <p className="text-sm text-muted-foreground">
                 Interests: <span className="text-foreground">{currentInterests.filter(i => i).join(", ") || "-"}</span>
@@ -347,6 +477,26 @@ export default function ProfilePage() {
                   <button onClick={doSignOut} className="px-3 py-1 border border-border rounded hover:bg-secondary text-sm ml-auto">Sign out</button>
                 </div>
               </div>
+              
+              {/* Connect with Polygon button */}
+              <div className="mt-2">
+                {polygonVerified ? (
+                  <button className="px-3 py-1 border border-border rounded bg-green-600/20 text-green-700 text-sm flex items-center gap-2" disabled>
+                    Polygon connected
+                    <svg width="16" height="16" viewBox="0 0 38.4 33.5" className="inline-block">
+                      <path fill="#8247e5" d="M29,10.2c-0.7-0.4-1.6-0.4-2.4,0L21,13.5l-3.8,2.1l-5.5,3.3c-0.7,0.4-1.6,0.4-2.4,0L5,16.3 c-0.7-0.4-1.2-1.2-1.2-2.1v-5c0-0.8,0.4-1.6,1.2-2.1l4.3-2.5c0.7-0.4,1.6-0.4,2.4,0L16,7.2c0.7,0.4,1.2,1.2,1.2,2.1v3.3l3.8-2.2V7 c0-0.8-0.4-1.6-1.2-2.1l-8-4.7c-0.7-0.4-1.6-0.4-2.4,0L1.2,5C0.4,5.4,0,6.2,0,7v9.4c0,0.8,0.4,1.6,1.2,2.1l8.1,4.7 c0.7,0.4,1.6,0.4,2.4,0l5.5-3.2l3.8-2.2l5.5-3.2c0.7-0.4,1.6-0.4,2.4,0l4.3,2.5c0.7,0.4,1.2,1.2,1.2,2.1v5c0,0.8-0.4,1.6-1.2,2.1 L29,28.8c-0.7,0.4-1.6,0.4-2.4,0l-4.3-2.5c-0.7-0.4-1.2-1.2-1.2-2.1V21l-3.8,2.2v3.3c0,0.8,0.4,1.6,1.2,2.1l8.1,4.7 c0.7,0.4,1.6,0.4,2.4,0l8.1-4.7c0.7-0.4,1.2-1.2,1.2-2.1V17c0-0.8-0.4-1.6-1.2-2.1L29,10.2z"/>
+                    </svg>
+                  </button>
+                ) : (
+                  <button className="px-3 py-1 border border-border rounded hover:bg-secondary text-sm flex items-center gap-2" onClick={connectPolygonWallet}>
+                    Connect with Polygon
+                    <svg width="16" height="16" viewBox="0 0 38.4 33.5" className="inline-block">
+                      <path fill="#8247e5" d="M29,10.2c-0.7-0.4-1.6-0.4-2.4,0L21,13.5l-3.8,2.1l-5.5,3.3c-0.7,0.4-1.6,0.4-2.4,0L5,16.3 c-0.7-0.4-1.2-1.2-1.2-2.1v-5c0-0.8,0.4-1.6,1.2-2.1l4.3-2.5c0.7-0.4,1.6-0.4,2.4,0L16,7.2c0.7,0.4,1.2,1.2,1.2,2.1v3.3l3.8-2.2V7 c0-0.8-0.4-1.6-1.2-2.1l-8-4.7c-0.7-0.4-1.6-0.4-2.4,0L1.2,5C0.4,5.4,0,6.2,0,7v9.4c0,0.8,0.4,1.6,1.2,2.1l8.1,4.7 c0.7,0.4,1.6,0.4,2.4,0l5.5-3.2l3.8-2.2l5.5-3.2c0.7-0.4,1.6-0.4,2.4,0l4.3,2.5c0.7,0.4,1.2,1.2,1.2,2.1v5c0,0.8-0.4,1.6-1.2,2.1 L29,28.8c-0.7,0.4-1.6,0.4-2.4,0l-4.3-2.5c-0.7-0.4-1.2-1.2-1.2-2.1V21l-3.8,2.2v3.3c0,0.8,0.4,1.6,1.2,2.1l8.1,4.7 c0.7,0.4,1.6,0.4,2.4,0l8.1-4.7c0.7-0.4,1.2-1.2,1.2-2.1V17c0-0.8-0.4-1.6-1.2-2.1L29,10.2z"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
+
               <input ref={fileInputRef} onChange={onFileChange} type="file" accept="image/*" className="hidden" />
 
               {/* nickname edit area */}
