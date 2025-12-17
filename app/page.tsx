@@ -2,6 +2,7 @@ import { Header } from "@/components/header"
 import { ProductGrid } from "@/components/product-grid"
 import type { Product } from "@/lib/types"
 import { auth } from "@clerk/nextjs/server"
+import { clerkClient } from "@clerk/nextjs/server"
 
 const SLOPE_LOGO = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-4Gi5slRBIrpvjeimKEmwEAbgjBSOX1.png"
 
@@ -14,6 +15,13 @@ type PostResponse = {
   previewImages?: string[]
   sellerId?: string
 }
+
+type PublicUserResponse = {
+  nickname?: string
+}
+
+const userApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
+const sellerCache = new Map<string, Promise<string>>()
 
 export default async function HomePage() {
   let themedProducts: Product[] = []
@@ -59,7 +67,7 @@ export default async function HomePage() {
         id: String(post.id),
         title: post.title,
         image: imageUrl,
-        seller: post.sellerId || "Unknown",
+        seller: await resolveSellerDisplay(post.sellerId, userApiBase, sellerCache) || "Unknown",
         price: post.priceUSD ?? 0,
         priceUSD: post.priceUSD ?? 0,
         rating: 0,
@@ -79,13 +87,13 @@ export default async function HomePage() {
       <main className="container mx-auto px-4 py-8">
         {/* Products Section */}
         {error? (
-          <div className="text-red-500">{error}</div>
+          <div className="flex justify-center text-red-500">{error}. Try logging in, to see suggested products.</div>
         ) : themedProducts.length > 0 ? (
           <section>
             <ProductGrid products={themedProducts} />
           </section>
         ) : (
-          <div>No products available.</div>
+          <div className="flex justify-center text-green-500">No listings matched your interests. Edit or add them in your profile.</div>
         )}
 
         {/* Load More Button */}
@@ -105,4 +113,59 @@ export default async function HomePage() {
       </footer>
     </div>
   )
+}
+
+
+
+//dodan da se bo uporablu epic username al pa wallet ne clerkid
+async function resolveSellerDisplay(
+  clerkId: string | undefined,
+  userApiBase: string,
+  cache: Map<string, Promise<string>>
+): Promise<string> {
+  if (!clerkId) return "Unknown seller"
+
+  const cached = cache.get(clerkId)
+  if (cached) return cached
+
+  const fetchPromise = (async () => {
+    try {
+      const res = await fetch(`${userApiBase}/users/public/${encodeURIComponent(clerkId)}`, { cache: "no-store" })
+      if (res.ok) {
+        const data: PublicUserResponse = await res.json()
+        if (data.nickname?.trim()) return data.nickname.trim()
+      }
+    } catch (err) {
+      console.warn("Failed to resolve seller nickname", err)
+    }
+
+    // Fallback to Clerk wallet without storing it
+    try {
+      const clerk = await clerkClient()
+      const user = await clerk.users.getUser(clerkId)
+      const wallet = extractWallet(user)
+      if (wallet) return wallet
+    } catch (err) {
+      console.warn("Failed to fetch Clerk wallet for seller", err)
+    }
+
+    return clerkId
+  })()
+
+  cache.set(clerkId, fetchPromise)
+  return fetchPromise
+}
+
+function extractWallet(user: any): string | null {
+  // Safely extract wallet address from various Clerk SDK / Admin shapes
+  // SDK shapes vary between environments; prefer verified fields when available
+  // @ts-ignore
+  const p1 = user?.primaryWalletAddress
+  // @ts-ignore
+  const p2 = user?.externalAccounts?.[0]?.address
+  // @ts-ignore
+  const p3 = user?.web3Wallets?.[0]?.web3Wallet
+  // @ts-ignore
+  const p4 = user?.web3_wallets?.[0]?.web3_wallet
+  return p1 || p2 || p3 || p4 || null
 }
