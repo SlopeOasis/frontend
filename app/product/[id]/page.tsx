@@ -37,13 +37,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
   let mapped: Product | null = null
 
   try {
+    // Use public endpoint to allow browsing without authentication
+    const res = await fetch(`${postApiBase}/posts/public/${id}`, { 
+      cache: "no-store"
+    })
+
     const { getToken } = await auth()
     const token = await getToken({ template: "backendVerification" })
-    
-    const res = await fetch(`${postApiBase}/posts/${id}`, { 
-      cache: "no-store",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined
-    })
     if (res.status === 404) return notFound()
     if (!res.ok) throw new Error(`Failed to load post (${res.status})`)
 

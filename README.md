@@ -1,10 +1,20 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SlopeOasis Frontend (Next.js)
 
-## Getting Started
+## Pregled
+Frontend aplikacija za marketplace (browse → product page → purchase flow).
 
-First, run the development server:
+Privzete lokalne povezave:
+- Frontend: http://localhost:3000
+- user-service: http://localhost:8080
+- post-service: http://localhost:8081
+- payment-service: http://localhost:8082
 
+## Zagon
+
+### Lokalni razvoj
 ```bash
+cd frontend/slopeoasis
+npm install
 npm run dev
 # or
 yarn dev
