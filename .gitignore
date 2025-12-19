@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# k8s secrets (keep only *-secrets.example.yaml in git)
+k8s/*-secrets.yaml
+
 # vercel
 .vercel
 

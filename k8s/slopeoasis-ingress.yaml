@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: slopeoasis-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # Route prefix stripping so backends continue to serve from '/'
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: YOUR_DOMAIN
+      http:
+        paths:
+          # Frontend
+          - path: /()(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+
+          # user-service at /user
+          - path: /user(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: user-service
+                port:
+                  number: 8080
+
+          # post-service at /post
+          - path: /post(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: post-service
+                port:
+                  number: 8081
+
+          # payment-service at /payment
+          - path: /payment(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: payment-service
+                port:
+                  number: 8082

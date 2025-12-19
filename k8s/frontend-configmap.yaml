@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+data:
+  # Public (browser) config
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ""
+
+  # The frontend currently uses both NEXT_PUBLIC_API_BASE_URL and NEXT_PUBLIC_USER_API_URL
+  # for the user-service.
+  # With the Ingress below, these become path-prefixed URLs on the same host.
+  NEXT_PUBLIC_API_BASE_URL: "https://YOUR_DOMAIN/user"
+  NEXT_PUBLIC_USER_API_URL: "https://YOUR_DOMAIN/user"
+  NEXT_PUBLIC_POST_API_URL: "https://YOUR_DOMAIN/post"
+  NEXT_PUBLIC_PAYMENT_API_URL: "https://YOUR_DOMAIN/payment"
