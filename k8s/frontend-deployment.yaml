@@ -12,14 +12,11 @@ spec:
       labels:
         app: frontend
     spec:
+      imagePullSecrets:
+        - name: arc-auth
       containers:
         - name: frontend
           image: slopeoasis-frontend:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
-          envFrom:
-            - configMapRef:
-                name: frontend-config
-            - secretRef:
-                name: frontend-secrets

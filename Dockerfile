@@ -1,37 +1,21 @@
+FROM node:20-alpine
 
-FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Install deps using lockfile
+# Install dependencies
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
-FROM node:20-alpine AS builder
-WORKDIR /app
-ENV NODE_ENV=production
-
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source
 COPY . .
 
-# Build Next.js app
-RUN npm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
+# FORCE DEV MODE
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# Create non-root user
-RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
-
-# Only what we need at runtime
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-
-USER nextjs
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+# THIS IS THE KEY DIFFERENCE
+CMD ["npm", "run", "dev"]

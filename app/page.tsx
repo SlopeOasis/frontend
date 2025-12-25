@@ -31,6 +31,7 @@ export default async function HomePage() {
     const postApiBase = process.env.NEXT_PUBLIC_POST_API_URL || "http://localhost:8081"
     const { getToken } = await auth()
     const token = await getToken({ template: "backendVerification" })
+
     
     const res = await fetch(`${postApiBase}/posts/themes`, { 
       cache: "no-store",
