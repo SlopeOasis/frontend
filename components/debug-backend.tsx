@@ -15,7 +15,7 @@ export function DebugBackend() {
     ;(async () => {
       try {
         console.log("[DEBUG] Testing health endpoint...")
-        const res = await fetch(`${apiBase}/health`)
+        const res = await fetch(`${apiBase}/healthuser`)
         const text = await res.text()
         console.log("[DEBUG] Health response:", res.status, text)
       } catch (e) {
