@@ -30,6 +30,9 @@ export default function ProfilePage() {
   const [myListings, setMyListings] = useState<Product[]>([])
   const [loadingListings, setLoadingListings] = useState(false)
   const [listingsError, setListingsError] = useState<string | null>(null)
+  const [boughtItems, setBoughtItems] = useState<Product[]>([])
+  const [loadingBought, setLoadingBought] = useState(false)
+  const [boughtError, setBoughtError] = useState<string | null>(null)
   const [polygonVerified, setPolygonVerified] = useState<boolean | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -44,6 +47,7 @@ export default function ProfilePage() {
     tags?: string[]
     previewImages?: string[]
     azBlobName?: string
+    sellerId?: string
   }
 
   const startEditNickname = () => {
@@ -186,6 +190,73 @@ export default function ProfilePage() {
       })()
       return () => { mounted = false }
     }, [user?.id, user?.username, user?.fullName, getToken, postApiBase, currentNickname, fetchPreviewUrl])
+
+    // Load bought items (posts purchased by current user)
+    useEffect(() => {
+      if (!user?.id) return
+      let mounted = true
+      setLoadingBought(true)
+      setBoughtError(null)
+      ;(async () => {
+        try {
+          const token = await getToken({ template: "backendVerification" })
+          const res = await fetch(`${postApiBase}/posts/buyer/${user.id}?page=0&size=20`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          })
+          if (res.status === 401) {
+            if (mounted) setBoughtError("Unauthorized. Please sign in again.")
+            return
+          }
+          if (!res.ok) throw new Error(`Failed to load purchases (${res.status})`)
+
+          const posts: PostResponse[] = await res.json()
+          const sellerNameCache = new Map<string, string>()
+
+          const resolveSellerName = async (sellerId?: string) => {
+            if (!sellerId) return "Unknown"
+            const cached = sellerNameCache.get(sellerId)
+            if (cached) return cached
+            try {
+              const r = await fetch(`${apiBase}/users/public/${encodeURIComponent(sellerId)}`)
+              if (r.ok) {
+                const data = await r.json()
+                const nickname = typeof data?.nickname === "string" ? data.nickname.trim() : ""
+                if (nickname) {
+                  sellerNameCache.set(sellerId, nickname)
+                  return nickname
+                }
+              }
+            } catch {}
+            sellerNameCache.set(sellerId, sellerId)
+            return sellerId
+          }
+
+          const products = await Promise.all(
+            posts.map(async (post) => {
+              const previewUrl = await fetchPreviewUrl(post, token)
+              return {
+                id: String(post.id),
+                title: post.title,
+                image: previewUrl || SLOPE_LOGO,
+                seller: await resolveSellerName(post.sellerId),
+                rating: 0,
+                price: post.priceUSD ?? 0,
+                category: post.tags?.[0] || "OTHER",
+                description: post.description,
+                tags: post.tags || [],
+              } satisfies Product
+            })
+          )
+
+          if (mounted) setBoughtItems(products)
+        } catch (e) {
+          if (mounted) setBoughtError(e instanceof Error ? e.message : "Failed to load purchases")
+        } finally {
+          if (mounted) setLoadingBought(false)
+        }
+      })()
+      return () => { mounted = false }
+    }, [user?.id, getToken, postApiBase, apiBase, fetchPreviewUrl])
 
   // Safely extract wallet address from various Clerk SDK / Admin shapes
   const walletDisplay = (() => {
@@ -588,9 +659,17 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="m-auto text-lg font-semibold mb-4">BOUGHT ITEMS</h2>
           </div>
-          <div className="text-center py-12 text-muted-foreground">
-            <p>No purchases yet.</p>
-          </div>
+          {loadingBought ? (
+            <div className="text-center py-12 text-muted-foreground">Loading your purchases...</div>
+          ) : boughtError ? (
+            <div className="text-center py-12 text-red-600">{boughtError}</div>
+          ) : boughtItems.length > 0 ? (
+            <ProductGrid products={boughtItems} previewHrefBuilder={(p) => `/product/${p.id}`} />
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No purchases yet.</p>
+            </div>
+          )}
         </section>
 
         {/* Delete profile at bottom */}

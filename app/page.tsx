@@ -23,60 +23,89 @@ type PublicUserResponse = {
 const userApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 const sellerCache = new Map<string, Promise<string>>()
 
+const FALLBACK_THEMES = ["ART", "MUSIC", "VIDEO"]
+
 export default async function HomePage() {
   let themedProducts: Product[] = []
   let error: string | null = null
 
-  try{
+  try {
     const postApiBase = process.env.NEXT_PUBLIC_POST_API_URL || "http://localhost:8081"
     const { getToken } = await auth()
     const token = await getToken({ template: "backendVerification" })
 
-    
-    const res = await fetch(`${postApiBase}/posts/themes`, { 
-      cache: "no-store",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined
-    })
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch themed posts (${res.status})`)
-    }
-
-    const posts: PostResponse[] = await res.json()
-
-    // Deduplicate posts by ID (posts may appear multiple times if they match multiple themes)
-    const uniquePosts = Array.from(
-      new Map(posts.map(post => [post.id, post])).values()
-    )
-
-    themedProducts = await Promise.all(uniquePosts.map(async (post) => {
-      let imageUrl = SLOPE_LOGO
-      if (post.previewImages?.[0]) {
-        try {
-          const sasRes = await fetch(
-            `${process.env.NEXT_PUBLIC_POST_API_URL || "http://localhost:8081"}/posts/${post.id}/public-sas?blobName=${encodeURIComponent(post.previewImages[0])}`,
+    const fetchPostsForThemes = async (themes: string[]): Promise<PostResponse[]> => {
+      const results = await Promise.all(
+        themes.map(async (theme) => {
+          const res = await fetch(
+            `${postApiBase}/posts/tag/${encodeURIComponent(theme)}?page=0&size=20`,
             { cache: "no-store" }
           )
-          if (sasRes.ok) {
-            imageUrl = await sasRes.text()
+          if (!res.ok) return []
+          const data = await res.json()
+          return Array.isArray(data) ? (data as PostResponse[]) : []
+        })
+      )
+      return results.flat()
+    }
+
+    let posts: PostResponse[] = []
+
+    if (token) {
+      const res = await fetch(`${postApiBase}/posts/themes`, {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (res.ok) {
+        const themed: PostResponse[] = await res.json()
+        posts = themed
+      } else if (res.status === 401 || res.status === 403) {
+        posts = await fetchPostsForThemes(FALLBACK_THEMES)
+      } else {
+        throw new Error(`Failed to fetch themed posts (${res.status})`)
+      }
+    } else {
+      posts = await fetchPostsForThemes(FALLBACK_THEMES)
+    }
+
+    if (posts.length === 0) {
+      posts = await fetchPostsForThemes(FALLBACK_THEMES)
+    }
+
+    // Deduplicate posts by ID (posts may appear multiple times if they match multiple themes)
+    const uniquePosts = Array.from(new Map(posts.map((post) => [post.id, post])).values())
+
+    themedProducts = await Promise.all(
+      uniquePosts.map(async (post) => {
+        let imageUrl = SLOPE_LOGO
+        if (post.previewImages?.[0]) {
+          try {
+            const sasRes = await fetch(
+              `${process.env.NEXT_PUBLIC_POST_API_URL || "http://localhost:8081"}/posts/${post.id}/public-sas?blobName=${encodeURIComponent(post.previewImages[0])}`,
+              { cache: "no-store" }
+            )
+            if (sasRes.ok) {
+              imageUrl = await sasRes.text()
+            }
+          } catch (err) {
+            console.warn("Failed to fetch SAS URL for themed posts", err)
           }
-        } catch (err) {
-          console.warn("Failed to fetch SAS URL for themed posts", err)
         }
-      }
-      return {
-        id: String(post.id),
-        title: post.title,
-        image: imageUrl,
-        seller: await resolveSellerDisplay(post.sellerId, userApiBase, sellerCache) || "Unknown",
-        price: post.priceUSD ?? 0,
-        priceUSD: post.priceUSD ?? 0,
-        rating: 0,
-        category: "",
-        tags: post.tags || [],
-        description: post.description,
-      }
-    }))
+        return {
+          id: String(post.id),
+          title: post.title,
+          image: imageUrl,
+          seller: (await resolveSellerDisplay(post.sellerId, userApiBase, sellerCache)) || "Unknown",
+          price: post.priceUSD ?? 0,
+          priceUSD: post.priceUSD ?? 0,
+          rating: 0,
+          category: "",
+          tags: post.tags || [],
+          description: post.description,
+        }
+      })
+    )
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load products"
   }
